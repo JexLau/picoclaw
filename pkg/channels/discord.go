@@ -295,15 +295,24 @@ func (c *DiscordChannel) startTyping(chatID string) {
 	c.typingMu.Unlock()
 
 	go func() {
-		c.session.ChannelTyping(chatID)
+		if err := c.session.ChannelTyping(chatID); err != nil {
+			logger.DebugCF("discord", "ChannelTyping error", map[string]interface{}{"chatID": chatID, "err": err})
+		}
 		ticker := time.NewTicker(8 * time.Second)
 		defer ticker.Stop()
+		timeout := time.After(5 * time.Minute)
 		for {
 			select {
 			case <-stop:
 				return
+			case <-timeout:
+				return
+			case <-c.ctx.Done():
+				return
 			case <-ticker.C:
-				c.session.ChannelTyping(chatID)
+				if err := c.session.ChannelTyping(chatID); err != nil {
+					logger.DebugCF("discord", "ChannelTyping error", map[string]interface{}{"chatID": chatID, "err": err})
+				}
 			}
 		}
 	}()
